@@ -106,6 +106,7 @@ python -m PyInstaller ^
     --onefile ^
     --windowed ^
     --name joy2midi ^
+    --runtime-hook=pyinstaller_runtime_hook.py ^
     --hidden-import=mido.backends.rtmidi ^
     --hidden-import=rtmidi ^
     --collect-submodules=mido.backends ^
