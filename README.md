@@ -39,7 +39,9 @@ joy2midi lets you quickly convert a gamepad/controller into MIDI CC controls:
 
 ## Easiest Windows build
 
-Install Python 3.10 or newer from python.org. During install, check **Add Python to PATH**.
+Install **Python 3.12 64-bit** from python.org. During install, check **Add Python to PATH**.
+
+Python 3.13+ is not recommended for building this project yet. Some Windows gamepad/MIDI dependencies may try to compile from source instead of installing prebuilt wheels.
 
 Then double-click:
 
@@ -49,19 +51,20 @@ build_exe.bat
 
 The build script will:
 
-1. Create a local `.venv` virtual environment
-2. Upgrade `pip`, `setuptools`, and `wheel`
-3. Install all dependencies
-4. Run PyInstaller
-5. Create `dist\joy2midi.exe`
+1. Look specifically for Python 3.12, then 3.11, then 3.10
+2. Create a clean local `.venv` virtual environment
+3. Upgrade `pip`, `setuptools`, and `wheel`
+4. Install dependencies using prebuilt wheels only
+5. Run PyInstaller
+6. Create `dist\joy2midi.exe`
 
-This is the recommended option for Windows computers because it avoids most missing `setuptools` / `wheel` / PyInstaller setup problems.
+This is the recommended option for Windows computers because it avoids most missing `setuptools` / `wheel` / PyInstaller / pygame source-build problems.
 
 ## Install for development
 
 ```bat
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements.txt
+py -3.12 -m pip install --upgrade pip setuptools wheel
+py -3.12 -m pip install --only-binary=:all: -r requirements.txt
 ```
 
 ## Windows MIDI setup
@@ -75,7 +78,7 @@ Then in Traktor, Ableton, Resolume, or another MIDI-capable app, select the same
 ## Run without compiling
 
 ```bat
-python joy2midi.py
+py -3.12 joy2midi.py
 ```
 
 Or double-click:
@@ -87,12 +90,26 @@ run_app.bat
 ## Manual EXE build
 
 ```bat
+py -3.12 -m venv .venv
+.venv\Scripts\activate
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements.txt
+python -m pip install --only-binary=:all: -r requirements.txt
 python -m PyInstaller --clean --noconfirm --onefile --windowed --name joy2midi joy2midi.py
 ```
 
 The `.exe` will appear in the `dist` folder.
+
+## If pygame fails to install
+
+If you see `failed to build pygame when getting requirements`, pip is probably trying to compile pygame from source.
+
+Fixes:
+
+1. Install **Python 3.12 64-bit** from python.org.
+2. Delete the `.venv` folder inside the joy2midi folder.
+3. Run `build_exe.bat` again.
+
+The current build script uses `--only-binary=:all:` so it will fail early with a clearer message instead of trying to compile pygame.
 
 ## How joystick axes and triggers are handled
 
