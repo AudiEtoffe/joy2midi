@@ -37,12 +37,31 @@ joy2midi lets you quickly convert a gamepad/controller into MIDI CC controls:
 - Button modes: momentary or toggle
 - Axis options: deadzone, invert, min/max value
 
-## Install
+## Easiest Windows build
 
-Install Python 3.10 or newer.
+Install Python 3.10 or newer from python.org. During install, check **Add Python to PATH**.
+
+Then double-click:
 
 ```bat
-pip install -r requirements.txt
+build_exe.bat
+```
+
+The build script will:
+
+1. Create a local `.venv` virtual environment
+2. Upgrade `pip`, `setuptools`, and `wheel`
+3. Install all dependencies
+4. Run PyInstaller
+5. Create `dist\joy2midi.exe`
+
+This is the recommended option for Windows computers because it avoids most missing `setuptools` / `wheel` / PyInstaller setup problems.
+
+## Install for development
+
+```bat
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
 ```
 
 ## Windows MIDI setup
@@ -53,7 +72,7 @@ Install **loopMIDI**, create a virtual port, then open joy2midi and select that 
 
 Then in Traktor, Ableton, Resolume, or another MIDI-capable app, select the same loopMIDI port as a MIDI input.
 
-## Run
+## Run without compiling
 
 ```bat
 python joy2midi.py
@@ -65,13 +84,12 @@ Or double-click:
 run_app.bat
 ```
 
-## Build an EXE
-
-Optional:
+## Manual EXE build
 
 ```bat
-pip install pyinstaller
-pyinstaller --onefile --windowed --name joy2midi joy2midi.py
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+python -m PyInstaller --clean --noconfirm --onefile --windowed --name joy2midi joy2midi.py
 ```
 
 The `.exe` will appear in the `dist` folder.
