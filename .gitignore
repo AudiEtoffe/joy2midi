@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+build/
+dist/
+*.spec
+profiles/*.json
+!.gitkeep
