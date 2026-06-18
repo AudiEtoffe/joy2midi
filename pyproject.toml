@@ -7,15 +7,15 @@ name = "joy2midi"
 version = "0.2.1"
 description = "Free guided gamepad-to-MIDI CC mapper for Windows"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = { text = "GPL-2.0-only" }
 authors = [
     { name = "Audi Etoffe and Acid Reign Productions" }
 ]
 dependencies = [
-    "pygame>=2.5.0",
+    "pygame==2.6.1",
     "mido>=1.3.0",
-    "python-rtmidi>=1.5.0"
+    "python-rtmidi>=1.5.8"
 ]
 
 [project.urls]
