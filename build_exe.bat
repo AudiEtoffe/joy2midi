@@ -26,7 +26,7 @@ if %errorlevel%==0 (
 if not defined PYTHON_CMD (
     echo No supported Python launcher version found.
     echo.
-    echo Please install Python 3.12 from python.org.
+    echo Please install Python 3.12 64-bit from python.org.
     echo During install, check "Add python.exe to PATH".
     echo.
     echo This project intentionally avoids Python 3.13+ for now because some
@@ -85,14 +85,33 @@ if errorlevel 1 (
     echo   2. Delete the .venv folder if it exists
     echo   3. Run build_exe.bat again
     echo.
-    echo If you are using Python 3.13 or 32-bit Python, pygame may try to build from source and fail.
     pause
     exit /b 1
 )
 
 echo.
-echo Building joy2midi.exe...
-python -m PyInstaller --clean --noconfirm --onefile --windowed --name joy2midi joy2midi.py
+echo Testing MIDI backend inside the virtual environment...
+python -c "import mido, rtmidi, mido.backends.rtmidi; mido.set_backend('mido.backends.rtmidi'); print('MIDI outputs visible to Python:', mido.get_output_names())"
+if errorlevel 1 (
+    echo MIDI backend test failed before compiling.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Building joy2midi.exe with explicit RtMidi backend packaging...
+python -m PyInstaller ^
+    --clean ^
+    --noconfirm ^
+    --onefile ^
+    --windowed ^
+    --name joy2midi ^
+    --hidden-import=mido.backends.rtmidi ^
+    --hidden-import=rtmidi ^
+    --collect-submodules=mido.backends ^
+    --collect-submodules=rtmidi ^
+    --collect-binaries=rtmidi ^
+    joy2midi.py
 if errorlevel 1 (
     echo Build failed.
     pause
@@ -102,5 +121,8 @@ if errorlevel 1 (
 echo.
 echo Build complete.
 echo EXE location: dist\joy2midi.exe
+echo.
+echo If the Python backend test saw MIDI ports but the EXE still does not,
+echo try build_exe_debug.bat so the console can show the backend error.
 echo.
 pause
