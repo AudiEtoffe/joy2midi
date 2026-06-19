@@ -12,8 +12,13 @@ This app is **100% free under the GNU GPL v2 license**.
 Support development / buy me a coffee:  
 https://buymeacoffee.com/acidrp
 
-## v0.3.0 features
+## v0.3.1 features
 
+- Automatically opens the selected MIDI output on startup
+- Automatically reopens the MIDI output when selecting/changing a profile
+- Shows clear MIDI connection status in the main window
+- Sends MIDI by default without needing to press **Open Port** first
+- Double-clicking the tray icon restores the main window when minimized to tray
 - Loads the previous profile automatically on startup
 - Saves the last-used profile path when loading/saving
 - Optional **Start with Windows**
