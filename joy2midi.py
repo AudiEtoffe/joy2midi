@@ -39,7 +39,7 @@ except Exception:
     ImageDraw = None
 
 APP_NAME = "joy2midi"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 APPDATA_DIR = Path(os.environ.get("APPDATA", str(Path.home()))) / "joy2midi"
 SETTINGS_PATH = APPDATA_DIR / "settings.json"
 PROFILE_DIR = Path(__file__).resolve().parent / "profiles"
@@ -104,6 +104,9 @@ class MidiOut:
     def __init__(self):
         self.port = None
         self.name = ""
+
+    def is_open(self) -> bool:
+        return self.port is not None
 
     def outputs(self) -> list[str]:
         if mido is None:
@@ -369,11 +372,12 @@ class App(tk.Tk):
         self.start_backends()
         self.refresh_all()
         self.load_last_profile()
+        self.after(250, self.auto_open_midi)
         self.protocol("WM_DELETE_WINDOW", self.close_or_tray)
         self.bind("<Unmap>", self.on_unmap)
         self.after(8, self.poll)
         if self.start_minimized_to_tray.get() and self.minimize_to_tray.get():
-            self.after(250, self.hide_to_tray)
+            self.after(300, self.hide_to_tray)
 
     def try_set_icon(self):
         png = resource_path("app_icon.png")
@@ -405,7 +409,6 @@ class App(tk.Tk):
     def build_ui(self):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
-
         header = ttk.Frame(self, padding=(14, 12))
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(2, weight=1)
@@ -430,14 +433,17 @@ class App(tk.Tk):
         ttk.Label(top, text="MIDI Output").grid(row=0, column=3, sticky="w", padx=(0, 8))
         self.output_box = ttk.Combobox(top, state="readonly", textvariable=self.output_name, width=38)
         self.output_box.grid(row=0, column=4, sticky="ew", padx=(0, 8))
-        self.output_box.bind("<<ComboboxSelected>>", lambda _e: self.save_settings())
-        ttk.Button(top, text="Rescan MIDI", command=self.refresh_outputs).grid(row=0, column=5, padx=(0, 8))
-        ttk.Button(top, text="Open Port", command=self.open_midi).grid(row=0, column=6)
+        self.output_box.bind("<<ComboboxSelected>>", self.output_selected)
+        ttk.Button(top, text="Rescan MIDI", command=self.refresh_outputs_and_open).grid(row=0, column=5, padx=(0, 8))
+        self.open_button = ttk.Button(top, text="Reopen Port", command=lambda: self.open_midi(silent=False))
+        self.open_button.grid(row=0, column=6)
         ttk.Label(top, text="Default Axis/Trigger Deadzone").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(10, 0))
         ttk.Spinbox(top, from_=0.0, to=0.95, increment=0.01, textvariable=self.deadzone, width=8, command=self.deadzone_changed).grid(row=1, column=1, sticky="w", pady=(10, 0))
         ttk.Checkbutton(top, text="Start with Windows", variable=self.start_with_windows, command=self.startup_changed).grid(row=1, column=2, sticky="w", pady=(10, 0))
         ttk.Checkbutton(top, text="Minimize to tray", variable=self.minimize_to_tray, command=self.save_settings).grid(row=1, column=3, sticky="w", pady=(10, 0))
         ttk.Checkbutton(top, text="Start hidden in tray", variable=self.start_minimized_to_tray, command=self.save_settings).grid(row=1, column=4, sticky="w", pady=(10, 0))
+        self.midi_state_label = ttk.Label(top, text="MIDI: not open")
+        self.midi_state_label.grid(row=1, column=5, columnspan=2, sticky="e", pady=(10, 0))
 
         learn = ttk.LabelFrame(self, text="Guided Learn Mode", padding=12)
         learn.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 10))
@@ -451,7 +457,6 @@ class App(tk.Tk):
         ttk.Button(bar, text="Test Selected", command=self.test_selected).grid(row=0, column=2, padx=(0, 8))
         ttk.Button(bar, text="Delete Selected", command=self.delete_selected).grid(row=0, column=3)
         ttk.Label(learn, textvariable=self.learn_text, font=("Segoe UI", 12)).grid(row=1, column=0, sticky="ew", pady=(0, 8))
-
         cols = ("label", "kind", "cc", "channel", "mode", "invert", "deadzone", "enabled", "key")
         self.tree = ttk.Treeview(learn, columns=cols, show="headings", selectmode="browse")
         names = {"label": "Control", "kind": "Type", "cc": "CC", "channel": "Ch", "mode": "Mode", "invert": "Invert", "deadzone": "Deadzone", "enabled": "On", "key": "Internal Key"}
@@ -466,7 +471,6 @@ class App(tk.Tk):
         vsb = ttk.Scrollbar(learn, orient="vertical", command=self.tree.yview)
         vsb.grid(row=2, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=vsb.set)
-
         bottom = ttk.Frame(self, padding=(14, 0, 14, 12))
         bottom.grid(row=3, column=0, sticky="ew")
         bottom.columnconfigure(4, weight=1)
@@ -475,6 +479,13 @@ class App(tk.Tk):
         ttk.Button(bottom, text="Save Profile", command=self.save_profile).grid(row=0, column=2, padx=(0, 8))
         ttk.Button(bottom, text="Save As", command=self.save_profile_as).grid(row=0, column=3, padx=(0, 16))
         ttk.Label(bottom, textvariable=self.status).grid(row=0, column=4, sticky="e")
+
+    def update_midi_state(self):
+        if hasattr(self, "midi_state_label"):
+            if self.midi.is_open():
+                self.midi_state_label.configure(text=f"MIDI: open ({self.midi.name})")
+            else:
+                self.midi_state_label.configure(text="MIDI: not open")
 
     def startup_changed(self):
         try:
@@ -519,6 +530,29 @@ class App(tk.Tk):
             self.status.set(f"Found {len(outs)} MIDI output(s).")
         else:
             self.status.set("No MIDI outputs found. Create a loopMIDI port, then rescan.")
+        self.update_midi_state()
+
+    def refresh_outputs_and_open(self):
+        self.refresh_outputs()
+        self.auto_open_midi()
+
+    def output_selected(self, _event=None):
+        self.save_settings()
+        self.auto_open_midi()
+
+    def auto_open_midi(self, silent=True):
+        name = self.output_name.get().strip()
+        outputs = self.midi.outputs()
+        if not name and outputs:
+            name = next((o for o in outputs if "loopmidi" in o.lower()), outputs[0])
+            self.output_name.set(name)
+        if not name:
+            self.update_midi_state()
+            return False
+        if self.midi.is_open() and self.midi.name == name:
+            self.update_midi_state()
+            return True
+        return self.open_midi(silent=silent)
 
     def refresh_table(self):
         for item in self.tree.get_children():
@@ -532,14 +566,20 @@ class App(tk.Tk):
     def current_joy(self):
         return self.gamepads.get(self.controller_index.get())
 
-    def open_midi(self):
+    def open_midi(self, silent=False):
         try:
             self.midi.open(self.output_name.get())
             self.profile.data["midi_output_name"] = self.output_name.get()
             self.save_settings()
             self.status.set(f"MIDI output open: {self.output_name.get()}")
+            self.update_midi_state()
+            return True
         except Exception as exc:
-            messagebox.showerror("MIDI output error", str(exc))
+            self.update_midi_state()
+            self.status.set(f"MIDI output not open: {exc}")
+            if not silent:
+                messagebox.showerror("MIDI output error", str(exc))
+            return False
 
     def deadzone_changed(self):
         self.profile.data["axis_deadzone"] = max(0.0, min(0.95, float(self.deadzone.get())))
@@ -549,8 +589,8 @@ class App(tk.Tk):
         self.learning.set(not self.learning.get())
         self.learn_button.configure(text="Stop Learn" if self.learning.get() else "Start Learn")
         self.learn_text.set("Learning: press a button, move an axis, or tap the D-pad." if self.learning.get() else "Learn stopped. Double-click a row to edit it.")
-        if self.learning.get() and self.midi.port is None and self.output_name.get():
-            self.open_midi()
+        if self.learning.get() and not self.midi.is_open():
+            self.auto_open_midi()
 
     def event_to_control(self, event):
         if event.type == pygame.JOYBUTTONDOWN:
@@ -605,6 +645,8 @@ class App(tk.Tk):
     def process(self, mapping: Mapping, value: Any):
         if not mapping.enabled:
             return
+        if not self.midi.is_open():
+            self.auto_open_midi(silent=True)
         if mapping.kind == "axis":
             raw = float(value)
             raw = 0.0 if abs(raw) < mapping.deadzone else raw
@@ -667,8 +709,8 @@ class App(tk.Tk):
         if not mapping:
             messagebox.showinfo("Test mapping", "Select a mapping first.")
             return
-        if self.midi.port is None:
-            self.open_midi()
+        if not self.midi.is_open():
+            self.auto_open_midi()
         self.midi.cc(mapping.cc, mapping.max_value, mapping.channel)
         self.after(120, lambda: self.midi.cc(mapping.cc, mapping.min_value, mapping.channel))
 
@@ -697,6 +739,7 @@ class App(tk.Tk):
             self.refresh_table()
             self.save_settings()
             self.status.set(f"Loaded profile: {path.name}")
+            self.after(100, self.auto_open_midi)
         except Exception as exc:
             if not silent:
                 messagebox.showerror("Load profile", str(exc))
@@ -722,6 +765,7 @@ class App(tk.Tk):
         self.profile.save(path)
         self.save_settings()
         self.status.set(f"Saved profile: {path.name}")
+        self.auto_open_midi()
 
     def tray_image(self):
         ico = resource_path("app_icon.ico")
@@ -747,7 +791,10 @@ class App(tk.Tk):
         if pystray is None:
             return
         if self.tray_icon is None:
-            menu = pystray.Menu(pystray.MenuItem("Show joy2midi", lambda: self.after(0, self.show_from_tray)), pystray.MenuItem("Exit", lambda: self.after(0, self.exit_app)))
+            menu = pystray.Menu(
+                pystray.MenuItem("Show joy2midi", lambda: self.after(0, self.show_from_tray), default=True),
+                pystray.MenuItem("Exit", lambda: self.after(0, self.exit_app)),
+            )
             self.tray_icon = pystray.Icon(APP_NAME, self.tray_image(), APP_NAME, menu)
             self.tray_icon.run_detached()
 
