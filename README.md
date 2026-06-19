@@ -12,6 +12,17 @@ This app is **100% free under the GNU GPL v2 license**.
 Support development / buy me a coffee:  
 https://buymeacoffee.com/acidrp
 
+## v0.3.0 features
+
+- Loads the previous profile automatically on startup
+- Saves the last-used profile path when loading/saving
+- Optional **Start with Windows**
+- Optional **Minimize to tray**
+- Optional **Start hidden in tray**
+- Tray menu with **Show joy2midi** and **Exit**
+- Uses the Acid Reign purple/blue image as the generated app/window/EXE icon
+- Keeps explicit RtMidi backend packaging for the Windows EXE
+
 ## What it does
 
 joy2midi lets you quickly convert a gamepad/controller into MIDI CC controls:
@@ -41,8 +52,6 @@ joy2midi lets you quickly convert a gamepad/controller into MIDI CC controls:
 
 Install **Python 3.12 64-bit** from python.org. During install, check **Add Python to PATH**.
 
-Python 3.13+ is not recommended for building this project yet. Some Windows gamepad/MIDI dependencies may try to compile from source instead of installing prebuilt wheels.
-
 Then double-click:
 
 ```bat
@@ -55,16 +64,14 @@ The build script will:
 2. Create a clean local `.venv` virtual environment
 3. Upgrade `pip`, `setuptools`, and `wheel`
 4. Install dependencies using prebuilt wheels only
-5. Run PyInstaller
-6. Create `dist\joy2midi.exe`
+5. Generate `app_icon.png` and `app_icon.ico` from the embedded logo
+6. Run PyInstaller with the app icon and RtMidi backend included
+7. Create `dist\joy2midi.exe`
 
-This is the recommended option for Windows computers because it avoids most missing `setuptools` / `wheel` / PyInstaller / pygame source-build problems.
-
-## Install for development
+## Run without compiling
 
 ```bat
-py -3.12 -m pip install --upgrade pip setuptools wheel
-py -3.12 -m pip install --only-binary=:all: -r requirements.txt
+run_app.bat
 ```
 
 ## Windows MIDI setup
@@ -75,18 +82,6 @@ Install **loopMIDI**, create a virtual port, then open joy2midi and select that 
 
 Then in Traktor, Ableton, Resolume, or another MIDI-capable app, select the same loopMIDI port as a MIDI input.
 
-## Run without compiling
-
-```bat
-py -3.12 joy2midi.py
-```
-
-Or double-click:
-
-```bat
-run_app.bat
-```
-
 ## Manual EXE build
 
 ```bat
@@ -94,10 +89,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install --only-binary=:all: -r requirements.txt
-python -m PyInstaller --clean --noconfirm --onefile --windowed --name joy2midi joy2midi.py
+python make_icon.py
+python -m PyInstaller --clean --noconfirm --onefile --windowed --name joy2midi --icon=app_icon.ico --add-data "app_icon.ico;." --add-data "app_icon.png;." --runtime-hook=pyinstaller_runtime_hook.py --hidden-import=mido.backends.rtmidi --hidden-import=rtmidi --hidden-import=pystray._win32 --collect-submodules=mido.backends --collect-submodules=rtmidi --collect-submodules=pystray --collect-binaries=rtmidi joy2midi.py
 ```
-
-The `.exe` will appear in the `dist` folder.
 
 ## If pygame fails to install
 
@@ -109,7 +103,7 @@ Fixes:
 2. Delete the `.venv` folder inside the joy2midi folder.
 3. Run `build_exe.bat` again.
 
-The current build script uses `--only-binary=:all:` so it will fail early with a clearer message instead of trying to compile pygame.
+The build script uses `--only-binary=:all:` so it fails early instead of trying to compile pygame.
 
 ## How joystick axes and triggers are handled
 
@@ -159,14 +153,6 @@ Linear triggers: 0.00 to 0.05
 ```
 
 If a stick sends MIDI while sitting untouched, increase the deadzone. If a trigger feels unresponsive near the start of its travel, lower the deadzone.
-
-## Suggested Traktor defaults
-
-- Buttons: momentary CC 127 on press, CC 0 on release
-- D-pad: four momentary buttons
-- Triggers: absolute CC 0-127
-- Sticks: absolute CC 0-127 with a deadzone around 0.08 to 0.15
-- Use a controller button as a shift modifier inside Traktor if you want multiple layers
 
 ## License
 
