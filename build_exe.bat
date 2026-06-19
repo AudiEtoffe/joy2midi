@@ -25,12 +25,7 @@ if %errorlevel%==0 (
 
 if not defined PYTHON_CMD (
     echo No supported Python launcher version found.
-    echo.
     echo Please install Python 3.12 64-bit from python.org.
-    echo During install, check "Add python.exe to PATH".
-    echo.
-    echo This project intentionally avoids Python 3.13+ for now because some
-    echo Windows MIDI/gamepad dependencies may try to compile from source.
     pause
     exit /b 1
 )
@@ -74,17 +69,19 @@ if errorlevel 1 (
 
 echo.
 echo Installing wheel-only dependencies...
-echo This prevents pygame from trying to compile from source.
 python -m pip install --only-binary=:all: -r requirements.txt
 if errorlevel 1 (
-    echo.
     echo Failed to install requirements as prebuilt wheels.
-    echo.
-    echo Most likely fix:
-    echo   1. Install Python 3.12 64-bit from python.org
-    echo   2. Delete the .venv folder if it exists
-    echo   3. Run build_exe.bat again
-    echo.
+    echo Install Python 3.12 64-bit, delete .venv, then run this again.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Creating app icon files...
+python make_icon.py
+if errorlevel 1 (
+    echo Icon generation failed.
     pause
     exit /b 1
 )
@@ -99,20 +96,26 @@ if errorlevel 1 (
 )
 
 echo.
-echo Building joy2midi.exe with explicit RtMidi backend packaging...
+echo Building joy2midi.exe...
 python -m PyInstaller ^
     --clean ^
     --noconfirm ^
     --onefile ^
     --windowed ^
     --name joy2midi ^
+    --icon=app_icon.ico ^
+    --add-data "app_icon.ico;." ^
+    --add-data "app_icon.png;." ^
     --runtime-hook=pyinstaller_runtime_hook.py ^
     --hidden-import=mido.backends.rtmidi ^
     --hidden-import=rtmidi ^
+    --hidden-import=pystray._win32 ^
     --collect-submodules=mido.backends ^
     --collect-submodules=rtmidi ^
+    --collect-submodules=pystray ^
     --collect-binaries=rtmidi ^
     joy2midi.py
+
 if errorlevel 1 (
     echo Build failed.
     pause
@@ -122,8 +125,5 @@ if errorlevel 1 (
 echo.
 echo Build complete.
 echo EXE location: dist\joy2midi.exe
-echo.
-echo If the Python backend test saw MIDI ports but the EXE still does not,
-echo try build_exe_debug.bat so the console can show the backend error.
 echo.
 pause
